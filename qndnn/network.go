@@ -57,11 +57,18 @@ func (n *Neuron) Learn(expected float64, learningRate float64) {
 	err := -(expected - out)                  // actual-expected
 	derivative := n.Functions.Derivative(out) // derivative of output
 
+	var wg sync.WaitGroup
+	wg.Add(len(n.Inputs))
 	for _, i := range n.Inputs {
-		change := err * derivative * i.N.Value()
-		i.PendingChange = learningRate * change    // track pending change; to apply after back propagation is done
-		i.N.Learn(expected*i.Weight, learningRate) // pass along weighted expectation + learning rate
+		go func(i *Input) {
+			defer wg.Done()
+
+			change := err * derivative * i.N.Value()
+			i.PendingChange = learningRate * change    // track pending change; to apply after back propagation is done
+			i.N.Learn(expected*i.Weight, learningRate) // pass along weighted expectation + learning rate
+		}(i)
 	}
+	wg.Wait()
 }
 
 type NeuralNetwork [][]*Neuron
@@ -87,7 +94,7 @@ func NewNetwork(neuronCreate *func(*Neuron) *Neuron, layers ...int) NeuralNetwor
 	var l [][]*Neuron
 
 	if neuronCreate == nil {
-		neuronCreate = &WithSigmoid
+		neuronCreate = WithSigmoid()
 	}
 
 	for idx, size := range layers {
@@ -125,38 +132,64 @@ func NewNetwork(neuronCreate *func(*Neuron) *Neuron, layers ...int) NeuralNetwor
 	return l
 }
 
+type Expectations struct {
+	Input  []float64
+	Output []float64
+}
+
 func (nn NeuralNetwork) Train(
-	input []float64,
-	expected []float64,
+	expectations []Expectations,
 	learningRate float64,
 	rounds int,
 ) error {
-	if len(nn[0]) != len(input) {
-		return fmt.Errorf(
-			"input doesn't match first layer (want len '%v', got len '%v')",
-			len(nn[0]),
-			len(input),
-		)
-	}
+	for _, e := range expectations {
+		if len(nn[0]) != len(e.Input) {
+			return fmt.Errorf(
+				"input doesn't match first layer (want len '%v', got len '%v')",
+				len(nn[0]),
+				len(e.Input),
+			)
+		}
 
-	if len(nn[len(nn)-1]) != len(expected) {
-		return fmt.Errorf(
-			"expected output doesn't match last layer (want len '%v', got len '%v')",
-			len(nn[len(nn)-1]),
-			len(expected),
-		)
+		if len(nn[len(nn)-1]) != len(e.Output) {
+			return fmt.Errorf(
+				"expected output doesn't match last layer (want len '%v', got len '%v')",
+				len(nn[len(nn)-1]),
+				len(e.Output),
+			)
+		}
 	}
 
 	if rounds < 1 {
 		rounds = 1
 	}
 
+	var nnLock sync.Mutex
+	var rq sync.WaitGroup
+	rq.Add(rounds)
+
 	for n := 0; n < rounds; n++ {
-		for idx, n := range nn[len(nn)-1] {
-			n.Learn(expected[idx], learningRate) // start learning for all recursive
-		}
-		nn.Update() // apply all pending weight changes
+		go func(n int) {
+			defer rq.Done()
+			for _, e := range expectations {
+				// set input
+				for idx, i := range e.Input {
+					nn[0][idx].Preset = &i
+				}
+
+				nnLock.Lock()
+				for idx, n := range nn[len(nn)-1] {
+					n.Learn(e.Output[idx], learningRate) // start learning for all recursive
+				}
+				nnLock.Unlock()
+
+				nnLock.Lock()
+				nn.Update() // apply all pending weight changes
+				nnLock.Unlock()
+			}
+		}(n)
 	}
+	rq.Wait()
 
 	return nil
 }

@@ -3,26 +3,35 @@ package qndnn
 import "math"
 
 var (
-	WithSigmoid = func(n *Neuron) *Neuron {
-		n.Functions = NeuronFunctions{
-			Activation: sigmoid,
-			Derivative: derivativeSigmoid,
+	WithSigmoid = func() *func(*Neuron) *Neuron {
+		f := func(n *Neuron) *Neuron {
+			n.Functions = NeuronFunctions{
+				Activation: Sigmoid,
+				Derivative: DerivativeSigmoid,
+			}
+			return n
 		}
-		return n
+		return &f
 	}
-	WithReLU = func(n *Neuron) *Neuron {
-		n.Functions = NeuronFunctions{
-			Activation: relu,
-			Derivative: reluDerivative,
+	WithRelu = func() *func(*Neuron) *Neuron {
+		f := func(n *Neuron) *Neuron {
+			n.Functions = NeuronFunctions{
+				Activation: Relu,
+				Derivative: DerivativeRelu,
+			}
+			return n
 		}
-		return n
+		return &f
 	}
-	WithTanh = func(n *Neuron) *Neuron {
-		n.Functions = NeuronFunctions{
-			Activation: hyperbolicTan,
-			Derivative: hyperbolicTanDerivative,
+	WithTanh = func() *func(*Neuron) *Neuron {
+		f := func(n *Neuron) *Neuron {
+			n.Functions = NeuronFunctions{
+				Activation: HyperbolicTangent,
+				Derivative: DerivativeHyperbolicTangent,
+			}
+			return n
 		}
-		return n
+		return &f
 	}
 )
 
@@ -31,30 +40,31 @@ type NeuronFunctions struct {
 	Derivative func(float64) float64
 }
 
-func sigmoid(x float64) float64 {
+func Sigmoid(x float64) float64 {
 	return 1.0 / (1.0 + math.Pow(math.E, -1.0*x))
 }
 
-func derivativeSigmoid(y float64) float64 {
-	return sigmoid(y) * (1 - sigmoid(y))
+func DerivativeSigmoid(y float64) float64 {
+	x := Sigmoid(y)
+	return x * (1 - x)
 }
 
-func relu(x float64) float64 {
+func Relu(x float64) float64 {
 	return math.Max(0, x)
 }
 
-func reluDerivative(y float64) float64 {
-	if relu(y) >= 0 {
+func DerivativeRelu(y float64) float64 {
+	if Relu(y) > 0 {
 		return 1
 	} else {
 		return 0
 	}
 }
 
-func hyperbolicTan(x float64) float64 {
-	return (math.Pow(math.E, x) - math.Pow(math.E, -1)) / (math.Pow(math.E, x) + math.Pow(math.E, -1))
+func HyperbolicTangent(x float64) float64 {
+	return (math.Pow(math.E, x) - math.Pow(math.E, -x)) / (math.Pow(math.E, x) + math.Pow(math.E, -x))
 }
 
-func hyperbolicTanDerivative(y float64) float64 {
-	return 1 - math.Pow(hyperbolicTan(y), 2)
+func DerivativeHyperbolicTangent(y float64) float64 {
+	return 1 - math.Pow(HyperbolicTangent(y), 2)
 }
