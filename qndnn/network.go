@@ -1,15 +1,17 @@
 package qndnn
 
 import (
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"math/rand/v2"
 	"sync"
 )
 
 type Input struct {
-	N             *Neuron
-	Weight        float64
-	PendingChange float64
+	N             *Neuron `json:"-"`
+	Weight        float64 `json:"weight"`
+	PendingChange float64 `json:"-"`
 }
 
 func (i *Input) Result() float64 {
@@ -22,11 +24,11 @@ func (i *Input) UpdateWeight() {
 }
 
 type Neuron struct {
-	Inputs    []*Input
-	Bias      float64
-	Functions NeuronFunctions
+	Inputs    []*Input        `json:"inputs"`
+	Bias      float64         `json:"bias"`
+	Functions NeuronFunctions `json:"-"`
 
-	Preset *float64 // mostly used for input definition
+	Preset *float64 `json:"preset"` // mostly used for input definition
 }
 
 func (n *Neuron) Value() float64 {
@@ -90,7 +92,7 @@ func (nn NeuralNetwork) Output(in []float64) ([]float64, error) {
 	return result, nil
 }
 
-func NewNetwork(neuronCreate *func(*Neuron) *Neuron, layers ...int) NeuralNetwork {
+func NewNeuralNet(neuronCreate *func(*Neuron) *Neuron, layers ...int) NeuralNetwork {
 	var l [][]*Neuron
 
 	if neuronCreate == nil {
@@ -202,4 +204,49 @@ func (nn NeuralNetwork) Update() {
 			}
 		}
 	}
+}
+
+func (nn NeuralNetwork) Serialize() (string, error) {
+	out, err := json.Marshal(nn)
+	if err != nil {
+		return "", err
+	}
+	return base64.StdEncoding.EncodeToString(out), nil
+}
+
+func NewNeuralNetFromSerialized(neuronCreate *func(*Neuron) *Neuron, serialized string) (NeuralNetwork, error) {
+	content, err := base64.StdEncoding.DecodeString(serialized)
+	if err != nil {
+		return nil, err
+	}
+
+	if neuronCreate == nil {
+		neuronCreate = WithSigmoid()
+	}
+
+	net := NeuralNetwork{}
+	err = json.Unmarshal(content, &net)
+	if err != nil {
+		return nil, err
+	}
+
+	for idx, l := range net {
+		for _, n := range l {
+			n = (*neuronCreate)(n)
+		}
+
+		if idx == 0 {
+			continue // skip input layer for reconnecting
+		}
+
+		before := net[idx-1]
+		for _, n := range l {
+			for iidx, in := range before {
+				n.Inputs[iidx].N = in // reconnect neurons
+			}
+		}
+
+	}
+
+	return net, nil
 }

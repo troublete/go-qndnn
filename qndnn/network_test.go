@@ -1,12 +1,14 @@
 package qndnn
 
 import (
+	"encoding/base64"
 	"fmt"
+	"math"
 	"testing"
 )
 
 func Test_NewNetwork(t *testing.T) {
-	nn := NewNetwork(nil, 1, 2, 1)
+	nn := NewNeuralNet(nil, 1, 2, 1)
 	input := nn[0][0]
 	if *input.Preset != 1 || input.Value() != 1 {
 		t.Error("expected input to be 1")
@@ -61,7 +63,7 @@ func Test_NewNetwork(t *testing.T) {
 }
 
 func Test_Output(t *testing.T) {
-	nn := NewNetwork(nil, 1, 3, 1)
+	nn := NewNeuralNet(nil, 1, 3, 1)
 	_, err := nn.Output([]float64{1, 2, 3})
 	if err == nil {
 		t.Error("expected error, didn't get one")
@@ -72,7 +74,7 @@ func Test_Train(t *testing.T) {
 	t.Run("successful", func(t *testing.T) {
 		learningRate := 0.5
 
-		nn := NewNetwork(nil, 1, 2, 1)
+		nn := NewNeuralNet(nil, 1, 2, 1)
 		out, err := nn.Output([]float64{5})
 		if err != nil {
 			t.Error(err)
@@ -138,7 +140,7 @@ func Test_Train(t *testing.T) {
 	})
 
 	t.Run("error-nous run input", func(t *testing.T) {
-		nn := NewNetwork(nil, 1, 2, 1)
+		nn := NewNeuralNet(nil, 1, 2, 1)
 		err := nn.Train([]Expectations{{[]float64{1, 2}, []float64{1}}}, .5, 1)
 		if err == nil {
 			t.Error("expected error got none")
@@ -146,7 +148,7 @@ func Test_Train(t *testing.T) {
 	})
 
 	t.Run("error-nous run output", func(t *testing.T) {
-		nn := NewNetwork(nil, 1, 2, 1)
+		nn := NewNeuralNet(nil, 1, 2, 1)
 		err := nn.Train([]Expectations{{[]float64{1}, []float64{1, 2}}}, .5, 1)
 		if err == nil {
 			t.Error("expected error got none")
@@ -154,7 +156,7 @@ func Test_Train(t *testing.T) {
 	})
 
 	t.Run("setting negative rounds", func(t *testing.T) {
-		nn := NewNetwork(nil, 1, 2, 1)
+		nn := NewNeuralNet(nil, 1, 2, 1)
 		err := nn.Train([]Expectations{{[]float64{1}, []float64{1}}}, .5, -5)
 		if err != nil {
 			t.Error(err)
@@ -172,4 +174,118 @@ func Test_UpdateWeight(t *testing.T) {
 	if i.Weight != (.55-(-.001)) || i.PendingChange != 0.0 {
 		t.Error("updating weight failed")
 	}
+}
+
+func Test_Serialize(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		nn := NewNeuralNet(WithRelu(), 2, 2, 1)
+		out1, err := nn.Output([]float64{2, 3})
+		if err != nil {
+			t.Error(err)
+		}
+		content, err := nn.Serialize()
+		if err != nil {
+			t.Error(err)
+		}
+		nn, err = NewNeuralNetFromSerialized(WithRelu(), content)
+		if err != nil {
+			t.Error(err)
+		}
+		out2, err := nn.Output([]float64{2, 3})
+		if err != nil {
+			t.Error(err)
+		}
+
+		for idx, o := range out1 {
+			if o != out2[idx] {
+				t.Errorf("failed to compare output #%v: wanted %v, got %v", idx, o, out2[idx])
+			}
+		}
+	})
+
+	t.Run("success without custom activation", func(t *testing.T) {
+		nn := NewNeuralNet(nil, 2, 2, 1)
+		out1, err := nn.Output([]float64{2, 3})
+		if err != nil {
+			t.Error(err)
+		}
+		content, err := nn.Serialize()
+		if err != nil {
+			t.Error(err)
+		}
+		nn, err = NewNeuralNetFromSerialized(nil, content)
+		if err != nil {
+			t.Error(err)
+		}
+		out2, err := nn.Output([]float64{2, 3})
+		if err != nil {
+			t.Error(err)
+		}
+
+		for idx, o := range out1 {
+			if o != out2[idx] {
+				t.Errorf("failed to compare output #%v: wanted %v, got %v", idx, o, out2[idx])
+			}
+		}
+	})
+
+	t.Run("json error serialize", func(t *testing.T) {
+		nn := NewNeuralNet(nil, 1, 2, 1)
+		nn[1][0].Bias = math.Inf(1)
+		content, err := nn.Serialize()
+		if content != "" {
+			t.Error("expected no output")
+		}
+
+		if err == nil {
+			t.Error("expected error")
+		}
+	})
+
+	t.Run("json error serialize", func(t *testing.T) {
+		nn := NewNeuralNet(nil, 1, 2, 1)
+		nn[1][0].Bias = math.Inf(1)
+		content, err := nn.Serialize()
+		if content != "" {
+			t.Error("expected no output")
+		}
+
+		if err == nil {
+			t.Error("expected error")
+		}
+	})
+
+	t.Run("base64 deserialize error", func(t *testing.T) {
+		s := base64.StdEncoding.EncodeToString([]byte("test"))
+		n, err := NewNeuralNetFromSerialized(nil, s)
+		if n != nil {
+			t.Error("expected no output")
+		}
+
+		if err == nil {
+			t.Error("expected error")
+		}
+	})
+
+	t.Run("base64 deserialize error", func(t *testing.T) {
+		n, err := NewNeuralNetFromSerialized(nil, `👀`)
+		if n != nil {
+			t.Error("expected no output")
+		}
+
+		if err == nil {
+			t.Error("expected error")
+		}
+	})
+
+	t.Run("json deserialize error", func(t *testing.T) {
+		n, err := NewNeuralNetFromSerialized(nil, base64.StdEncoding.EncodeToString([]byte("nothing worth while")))
+		if n != nil {
+			t.Error("expected no output")
+		}
+
+		if err == nil {
+			t.Error("expected error")
+		}
+	})
 }
