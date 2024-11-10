@@ -1,3 +1,3 @@
 module github.com/troublete/go-qndnn
 
-go 1.21.4
+go 1.23.3

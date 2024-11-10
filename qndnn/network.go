@@ -166,33 +166,19 @@ func (nn NeuralNetwork) Train(
 		rounds = 1
 	}
 
-	var nnLock sync.Mutex
-	var rq sync.WaitGroup
-	rq.Add(rounds)
-
 	for n := 0; n < rounds; n++ {
-		go func(n int) {
-			defer rq.Done()
-			for _, e := range expectations {
-				// set input
-				for idx, i := range e.Input {
-					nn[0][idx].Preset = &i
-				}
-
-				nnLock.Lock()
-				for idx, n := range nn[len(nn)-1] {
-					n.Learn(e.Output[idx], learningRate) // start learning for all recursive
-				}
-				nnLock.Unlock()
-
-				nnLock.Lock()
-				nn.Update() // apply all pending weight changes
-				nnLock.Unlock()
+		for _, e := range expectations {
+			// set input
+			for idx, i := range e.Input {
+				nn[0][idx].Preset = &i
 			}
-		}(n)
-	}
-	rq.Wait()
 
+			for idx, n := range nn[len(nn)-1] {
+				n.Learn(e.Output[idx], learningRate) // start learning for all recursive
+			}
+			nn.Update() // apply all pending weight changes
+		}
+	}
 	return nil
 }
 
