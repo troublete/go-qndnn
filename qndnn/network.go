@@ -66,9 +66,10 @@ func (n *Neuron) Learn(expected float64, learningRate float64) {
 		go func(i *Input) {
 			defer wg.Done()
 
-			change := grad * i.Weight * i.N.Functions.Derivative(i.N.Value())
-			i.PendingChange = learningRate * change    // track pending change; to apply after back propagation is done
-			i.N.Learn(expected*i.Weight, learningRate) // pass along weighted expectation + learning rate
+			ival := i.N.Value()
+			change := grad * i.Weight * i.N.Functions.Derivative(ival)
+			i.PendingChange = learningRate * change * ival // track pending change; to apply after back propagation is done
+			i.N.Learn(expected*i.Weight, learningRate)     // pass along weighted expectation + learning rate
 		}(i)
 	}
 	wg.Wait()

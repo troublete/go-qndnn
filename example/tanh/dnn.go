@@ -22,7 +22,7 @@ func main() {
 				[]float64{.42},     // ... expected output
 			},
 		},
-		.75,  // learning rate eta
+		.25,  // learning rate eta
 		1000, // rounds of learning
 	)
 
