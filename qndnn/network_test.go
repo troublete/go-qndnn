@@ -82,15 +82,15 @@ func Test_Train(t *testing.T) {
 
 		bw1 := nn[1][0].Inputs[0].Weight
 		w1r := nn[1][0].Value()
-		vw1 := nn[1][0].Inputs[0].N.Value()
+		vw1 := DerivativeSigmoid(nn[1][0].Inputs[0].N.Value())
 		bw2 := nn[1][1].Inputs[0].Weight
 		w2r := nn[1][1].Value()
-		vw2 := nn[1][1].Inputs[0].N.Value()
+		vw2 := DerivativeSigmoid(nn[1][1].Inputs[0].N.Value())
 
 		bw3 := nn[2][0].Inputs[0].Weight
-		vw3 := nn[2][0].Inputs[0].N.Value()
+		vw3 := DerivativeSigmoid(nn[2][0].Inputs[0].N.Value())
 		bw4 := nn[2][0].Inputs[1].Weight
-		vw4 := nn[2][0].Inputs[1].N.Value()
+		vw4 := DerivativeSigmoid(nn[2][0].Inputs[1].N.Value())
 
 		err = nn.Train([]Expectations{{[]float64{5}, []float64{.666}}}, learningRate, 1)
 		if err != nil {

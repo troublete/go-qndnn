@@ -13,7 +13,7 @@ import (
 )
 
 func main() {
-	activation := flag.String("activation", "sigmoid", "activation function to use (must be 'sigmoid|tanh|relu')")
+	activation := flag.String("activation", "relu", "activation function to use (must be 'sigmoid|tanh|relu')")
 	layers := flag.String("layers", "", "csv value for layer sizes (e.g. input=4,hidden1=4,hidden2=4,output=2 == '4, 4, 4, 1'")
 	name := flag.String("name", "mynet.qndnn", "name of the net, to be used as filename")
 	flag.Parse()

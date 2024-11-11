@@ -12,7 +12,7 @@ import (
 )
 
 func main() {
-	activation := flag.String("activation", "sigmoid", "activation function to use (must be 'sigmoid|tanh|relu')")
+	activation := flag.String("activation", "relu", "activation function to use (must be 'sigmoid|tanh|relu')")
 	file := flag.String("file", "./mynet.qndnn", "file path to the stored qndnn file")
 	input := flag.String("input", "", "input in csv form")
 	output := flag.String("expected", "", "expected output in csv form")

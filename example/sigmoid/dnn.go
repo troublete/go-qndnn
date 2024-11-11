@@ -7,7 +7,7 @@ import (
 )
 
 func main() {
-	nn := qndnn.NewNeuralNet(nil, 3, 2, 2, 1) // input (3), hidden1 (2), hidden2 (2), out (1)
+	nn := qndnn.NewNeuralNet(nil, 3, 3, 2, 1) // input (3), hidden1 (2), hidden2 (2), out (1)
 
 	out, _ := nn.Output( // returns error if input is wrong dimension
 		[]float64{1, 2, 3}, // input
@@ -22,7 +22,7 @@ func main() {
 				[]float64{.42},     // ... expected output
 			},
 		},
-		.8,     // learning rate eta
+		.93,    // learning rate eta
 		250000, // rounds of learning
 	)
 
