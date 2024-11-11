@@ -58,6 +58,7 @@ func (n *Neuron) Learn(expected float64, learningRate float64) {
 	out := n.Value()
 	err := -(expected - out)                  // actual-expected
 	derivative := n.Functions.Derivative(out) // derivative of output
+	grad := err * derivative
 
 	var wg sync.WaitGroup
 	wg.Add(len(n.Inputs))
@@ -65,7 +66,7 @@ func (n *Neuron) Learn(expected float64, learningRate float64) {
 		go func(i *Input) {
 			defer wg.Done()
 
-			change := err * derivative * i.N.Functions.Derivative(i.N.Value())
+			change := grad * i.Weight * i.N.Functions.Derivative(i.N.Value())
 			i.PendingChange = learningRate * change    // track pending change; to apply after back propagation is done
 			i.N.Learn(expected*i.Weight, learningRate) // pass along weighted expectation + learning rate
 		}(i)
