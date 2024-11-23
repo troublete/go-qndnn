@@ -31,11 +31,7 @@ type Neuron struct {
 	Preset *float64 `json:"preset"` // mostly used for input definition
 }
 
-func (n *Neuron) Value() float64 {
-	if n.Preset != nil {
-		return *n.Preset
-	}
-
+func (n *Neuron) Input() float64 {
 	var mu sync.Mutex
 	v := 0.0
 	var q sync.WaitGroup
@@ -51,14 +47,20 @@ func (n *Neuron) Value() float64 {
 	}
 	q.Wait()
 	v += n.Bias
-	return n.Functions.Activation(v)
+	return v
 }
 
-func (n *Neuron) Learn(expected float64, learningRate float64) {
-	out := n.Value()
-	err := -(expected - out)                  // actual-expected
-	derivative := n.Functions.Derivative(out) // derivative of output
-	grad := err * derivative
+func (n *Neuron) Value() float64 {
+	if n.Preset != nil {
+		return *n.Preset
+	}
+
+	return n.Functions.Activation(n.Input())
+}
+
+func (n *Neuron) Learn(delta float64, weight float64, learningRate float64) {
+	derivative := n.Functions.Derivative(n.Input()) // derivative of output
+	d := derivative * weight * delta
 
 	var wg sync.WaitGroup
 	wg.Add(len(n.Inputs))
@@ -66,10 +68,8 @@ func (n *Neuron) Learn(expected float64, learningRate float64) {
 		go func(i *Input) {
 			defer wg.Done()
 
-			ival := i.N.Value()
-			change := grad * i.Weight * i.N.Functions.Derivative(ival)
-			i.PendingChange = learningRate * change * ival // track pending change; to apply after back propagation is done
-			i.N.Learn(expected*i.Weight, learningRate)     // pass along weighted expectation + learning rate
+			i.PendingChange += learningRate * d * i.N.Value() // track pending change; to apply after back propagation is done
+			i.N.Learn(d, i.Weight, learningRate)              // pass along weighted expectation + learning rate
 		}(i)
 	}
 	wg.Wait()
@@ -176,7 +176,12 @@ func (nn NeuralNetwork) Train(
 			}
 
 			for idx, n := range nn[len(nn)-1] {
-				n.Learn(e.Output[idx], learningRate) // start learning for all recursive
+				in := n.Input()
+				out := n.Value()
+				expected := e.Output[idx]
+				delta := (out - expected) * n.Functions.Derivative(in)
+
+				n.Learn(delta, 1.0, learningRate) // start learning for all recursive; delta is taken full
 			}
 			nn.Update() // apply all pending weight changes
 		}

@@ -2,7 +2,6 @@ package qndnn
 
 import (
 	"encoding/base64"
-	"fmt"
 	"math"
 	"testing"
 )
@@ -80,62 +79,59 @@ func Test_Train(t *testing.T) {
 			t.Error(err)
 		}
 
-		bw1 := nn[1][0].Inputs[0].Weight
-		w1r := nn[1][0].Value()
-		vw1 := nn[1][0].Inputs[0].N.Value()
-		bw2 := nn[1][1].Inputs[0].Weight
-		w2r := nn[1][1].Value()
-		vw2 := nn[1][1].Inputs[0].N.Value()
+		/*
+		 *   w1 / o2 \ w3
+		 *    o1      o4
+		 *   w2 \ o3 / w4
+		 *
+		 *   o1 == n[0][0]
+		 *   o2 == n[1][0]
+		 *   o3 == n[1][1]
+		 *   o4 == n[2][0]
+		 */
 
-		bw3 := nn[2][0].Inputs[0].Weight
-		vw3 := nn[2][0].Inputs[0].N.Value()
-		bw4 := nn[2][0].Inputs[1].Weight
-		vw4 := nn[2][0].Inputs[1].N.Value()
+		expected := .666
+		o := out[0]
+		i := nn[2][0].Input()
+		deltaIn := (o - expected) * DerivativeSigmoid(i)
+		w1 := nn[1][0].Inputs[0].Weight
+		w2 := nn[1][1].Inputs[0].Weight
+		w3 := nn[2][0].Inputs[0].Weight
+		w4 := nn[2][0].Inputs[1].Weight
+		o2in := nn[1][0].Input()
+		o3in := nn[1][1].Input()
+		o4in := nn[2][0].Input()
+		o1out := nn[0][0].Value()
+		o2out := nn[1][0].Value()
+		o3out := nn[1][1].Value()
 
-		err = nn.Train([]Expectations{{[]float64{5}, []float64{.666}}}, learningRate, 1)
+		err = nn.Train([]Expectations{{[]float64{5}, []float64{expected}}}, learningRate, 1)
 		if err != nil {
 			t.Error(err)
 		}
 
-		aw1 := nn[1][0].Inputs[0].Weight
-		aw2 := nn[1][1].Inputs[0].Weight
-		aw3 := nn[2][0].Inputs[0].Weight
-		aw4 := nn[2][0].Inputs[1].Weight
-
-		w4out := out[0]
-		w4err := -(.666 - w4out)
-		w4der := DerivativeSigmoid(w4out)
-		w4change := w4err * w4der * bw4 * DerivativeSigmoid(vw4) * vw4
-		calcw4 := bw4 - (w4change * learningRate)
-		if fmt.Sprintf("%.10f", aw4) != fmt.Sprintf("%.10f", calcw4) {
-			t.Errorf("w4 adjustent incorrect, should be '%v' is '%v", calcw4, aw4)
+		w3chg := learningRate * (deltaIn * 1.0 * DerivativeSigmoid(o4in)) * o2out
+		w3new := w3 - w3chg
+		if w3new != nn[2][0].Inputs[0].Weight {
+			t.Errorf("w3 was calculated wrongly; wanted %v, got %v", w3new, nn[2][0].Inputs[0].Weight)
 		}
 
-		w3out := out[0]
-		w3err := -(.666 - w3out)
-		w3der := DerivativeSigmoid(w3out)
-		w3change := w3err * w3der * bw3 * DerivativeSigmoid(vw3) * vw3
-		calcw3 := bw3 - (w3change * learningRate)
-		if fmt.Sprintf("%.10f", aw3) != fmt.Sprintf("%.10f", calcw3) {
-			t.Errorf("w3 adjustent incorrect, should be '%v' is '%v", calcw3, aw3)
+		w4chg := learningRate * (deltaIn * 1.0 * DerivativeSigmoid(o4in)) * o3out
+		w4new := w4 - w4chg
+		if w4new != nn[2][0].Inputs[1].Weight {
+			t.Errorf("w4 was calculated wrongly; wanted %v, got %v", w4new, nn[2][0].Inputs[1].Weight)
 		}
 
-		w2out := w2r
-		w2err := -((.666 * bw4) - w2out)
-		w2der := DerivativeSigmoid(w2out)
-		w2change := w2err * w2der * bw2 * DerivativeSigmoid(vw2) * vw2
-		calcw2 := bw2 - (w2change * learningRate)
-		if fmt.Sprintf("%.10f", aw2) != fmt.Sprintf("%.10f", calcw2) {
-			t.Errorf("w2 adjustent incorrect, should be '%v' is '%v", calcw2, aw2)
+		w2chg := learningRate * (DerivativeSigmoid(o3in) * w4 * (deltaIn * 1.0 * DerivativeSigmoid(o4in))) * o1out
+		w2new := w2 - w2chg
+		if w2new != nn[1][1].Inputs[0].Weight {
+			t.Errorf("w2 was calculated wrongly; wanted %v, got %v", w2new, nn[1][1].Inputs[0].Weight)
 		}
 
-		w1out := w1r
-		w1err := -((.666 * bw3) - w1out)
-		w1der := DerivativeSigmoid(w1out)
-		w1change := w1err * w1der * bw1 * DerivativeSigmoid(vw1) * vw1
-		calcw1 := bw1 - (w1change * learningRate)
-		if fmt.Sprintf("%.10f", aw1) != fmt.Sprintf("%.10f", calcw1) {
-			t.Errorf("w1 adjustent incorrect, should be '%v' is '%v", calcw1, aw1)
+		w1chg := learningRate * (DerivativeSigmoid(o2in) * w3 * (deltaIn * 1.0 * DerivativeSigmoid(o4in))) * o1out
+		w1new := w1 - w1chg
+		if w1new != nn[1][0].Inputs[0].Weight {
+			t.Errorf("w1 was calculated wrongly; wanted %v, got %v", w1new, nn[1][0].Inputs[0].Weight)
 		}
 	})
 

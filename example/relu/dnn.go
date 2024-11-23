@@ -13,7 +13,7 @@ func main() {
 		[]float64{1, 2, 3}, // input
 	)
 	fmt.Println(out)
-	// demo out: [3.1304876598996585]
+	// demo out: [4.8584207481237565]
 
 	_ = nn.Train( // returns error if input or output is wrong dimension
 		[]qndnn.Expectations{
@@ -22,11 +22,11 @@ func main() {
 				[]float64{42},      // ... expected output
 			},
 		},
-		.0001,  // learning rate eta
-		100000, // rounds of learning
+		.001, // learning rate eta
+		1000, // rounds of learning
 	)
 
 	out, _ = nn.Output([]float64{1, 2, 3})
 	fmt.Println(out)
-	// demo out: [42.06386375634217]
+	// demo out: [42]
 }
