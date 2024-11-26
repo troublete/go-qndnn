@@ -22,8 +22,8 @@ func main() {
 				[]float64{.42},     // ... expected output
 			},
 		},
-		.4,    // learning rate eta
-		10000, // rounds of learning
+		.4,                         // learning rate eta
+		qndnn.RoundStrategy(10000), // rounds of learning
 	)
 
 	out, _ = nn.Output([]float64{1, 2, 3})

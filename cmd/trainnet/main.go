@@ -68,7 +68,7 @@ func main() {
 			Input:  in,
 			Output: out,
 		},
-	}, *learningRate, *rounds)
+	}, *learningRate, qndnn.RoundStrategy(*rounds))
 	if err != nil {
 		slog.Error("couldn't train network", "err", err)
 		os.Exit(1)

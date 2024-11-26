@@ -4,13 +4,18 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
+	"math"
 	"math/rand/v2"
 	"sync"
+	"time"
 )
 
 type Input struct {
-	N             *Neuron `json:"-"`
-	Weight        float64 `json:"weight"`
+	N      *Neuron `json:"-"`
+	Weight float64 `json:"weight"`
+
+	changeLock    sync.Mutex
 	PendingChange float64 `json:"-"`
 }
 
@@ -68,8 +73,11 @@ func (n *Neuron) Learn(delta float64, weight float64, learningRate float64) {
 		go func(i *Input) {
 			defer wg.Done()
 
-			i.PendingChange += learningRate * d * i.N.Value() // track pending change; to apply after back propagation is done
-			i.N.Learn(d, i.Weight, learningRate)              // pass along weighted expectation + learning rate
+			pc := learningRate * d * i.N.Value()
+			i.changeLock.Lock()
+			i.PendingChange += pc // track pending change; to apply after back propagation is done
+			i.changeLock.Unlock()
+			i.N.Learn(d, i.Weight, learningRate) // pass along weighted expectation + learning rate
 		}(i)
 	}
 	wg.Wait()
@@ -141,10 +149,63 @@ type Expectations struct {
 	Output []float64
 }
 
+type Strategy func(errs []float64) bool
+
+func RoundStrategy(rounds int) Strategy {
+	if rounds < 0 {
+		rounds = 1
+	}
+
+	counter := 0
+	return func(_ []float64) bool {
+		if counter == rounds {
+			return false
+		} else {
+			counter++
+			return true
+		}
+	}
+}
+
+func ThresholdStrategy(errorThreshold float64, stopAfter time.Duration) Strategy {
+	start := time.Now()
+	end := start.Add(stopAfter)
+	return func(errs []float64) bool {
+		if stopAfter > 0 && time.Now().After(end) {
+			return false
+		}
+
+		cumulated := 0.0
+		for _, err := range errs {
+			cumulated += math.Abs(err)
+		}
+
+		if len(errs) > 0 && // this is important, because on first run we don't have errors yet; so it would stop immediately
+			cumulated <= errorThreshold {
+			return false
+		} else {
+			return true
+		}
+	}
+}
+
+func WithLoggingStrategy(out io.Writer, strategy Strategy) Strategy {
+	f := strategy
+	return func(errs []float64) bool {
+		cum := 0.0
+		for _, err := range errs {
+			cum += math.Abs(err)
+		}
+		// we ignore errors, since this strategy is rather for user info
+		_, _ = fmt.Fprintf(out, "%s – cumulated error: %.10f\n", time.Now().Format(time.DateTime), cum)
+		return f(errs)
+	}
+}
+
 func (nn NeuralNetwork) Train(
 	expectations []Expectations,
 	learningRate float64,
-	rounds int,
+	strategy Strategy,
 ) error {
 	for _, e := range expectations {
 		if len(nn[0]) != len(e.Input) {
@@ -164,29 +225,35 @@ func (nn NeuralNetwork) Train(
 		}
 	}
 
-	if rounds < 1 {
-		rounds = 1
-	}
+	var errs []float64
+	for {
+		// based on strategy, abort or continue
+		if !strategy(errs) {
+			return nil
+		}
 
-	for n := 0; n < rounds; n++ {
 		for _, e := range expectations {
+			errs = []float64{}
 			// set input
 			for idx, i := range e.Input {
 				nn[0][idx].Preset = &i
 			}
 
+			// iterate through all output nodes, comparing result with expectation
 			for idx, n := range nn[len(nn)-1] {
 				in := n.Input()
 				out := n.Value()
 				expected := e.Output[idx]
-				delta := (out - expected) * n.Functions.Derivative(in)
+				err := out - expected
+				delta := err * n.Functions.Derivative(in)
+				errs = append(errs, err)
 
 				n.Learn(delta, 1.0, learningRate) // start learning for all recursive; delta is taken full
 			}
+
 			nn.Update() // apply all pending weight changes
 		}
 	}
-	return nil
 }
 
 func (nn NeuralNetwork) Update() {

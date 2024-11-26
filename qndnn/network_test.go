@@ -1,9 +1,11 @@
 package qndnn
 
 import (
+	"bytes"
 	"encoding/base64"
 	"math"
 	"testing"
+	"time"
 )
 
 func Test_NewNetwork(t *testing.T) {
@@ -105,7 +107,7 @@ func Test_Train(t *testing.T) {
 		o2out := nn[1][0].Value()
 		o3out := nn[1][1].Value()
 
-		err = nn.Train([]Expectations{{[]float64{5}, []float64{expected}}}, learningRate, 1)
+		err = nn.Train([]Expectations{{[]float64{5}, []float64{expected}}}, learningRate, RoundStrategy(1))
 		if err != nil {
 			t.Error(err)
 		}
@@ -137,7 +139,7 @@ func Test_Train(t *testing.T) {
 
 	t.Run("error-nous run input", func(t *testing.T) {
 		nn := NewNeuralNet(nil, 1, 2, 1)
-		err := nn.Train([]Expectations{{[]float64{1, 2}, []float64{1}}}, .5, 1)
+		err := nn.Train([]Expectations{{[]float64{1, 2}, []float64{1}}}, .5, RoundStrategy(1))
 		if err == nil {
 			t.Error("expected error got none")
 		}
@@ -145,7 +147,7 @@ func Test_Train(t *testing.T) {
 
 	t.Run("error-nous run output", func(t *testing.T) {
 		nn := NewNeuralNet(nil, 1, 2, 1)
-		err := nn.Train([]Expectations{{[]float64{1}, []float64{1, 2}}}, .5, 1)
+		err := nn.Train([]Expectations{{[]float64{1}, []float64{1, 2}}}, .5, RoundStrategy(1))
 		if err == nil {
 			t.Error("expected error got none")
 		}
@@ -153,7 +155,7 @@ func Test_Train(t *testing.T) {
 
 	t.Run("setting negative rounds", func(t *testing.T) {
 		nn := NewNeuralNet(nil, 1, 2, 1)
-		err := nn.Train([]Expectations{{[]float64{1}, []float64{1}}}, .5, -5)
+		err := nn.Train([]Expectations{{[]float64{1}, []float64{1}}}, .5, RoundStrategy(-5))
 		if err != nil {
 			t.Error(err)
 		}
@@ -284,4 +286,130 @@ func Test_Serialize(t *testing.T) {
 			t.Error("expected error")
 		}
 	})
+}
+
+func Test_RoundStrategy(t *testing.T) {
+	n := 0
+	s := RoundStrategy(5)
+	for {
+		if !s([]float64{}) {
+			break
+		}
+		n++
+	}
+
+	if n > 5 {
+		t.Error("ran more than expected", n)
+	}
+
+	if n < 5 {
+		t.Error("ran less than expected", n)
+	}
+}
+
+func Test_ThresholdStrategy(t *testing.T) {
+	t.Run("without max time", func(t *testing.T) {
+		s := ThresholdStrategy(0.01, -1)
+		errs := []float64{
+			0.1,
+			0.5,
+			0.3,
+		}
+
+		for {
+			if !s(errs) {
+				break
+			}
+
+			for idx, v := range errs {
+				r := v - 0.01
+				if r < 0 {
+					r = 0
+				}
+				errs[idx] = r
+			}
+		}
+
+		v := 0.0
+		for _, err := range errs {
+			v += err
+		}
+
+		if v > 0.01 {
+			t.Error("failed to stop at expected threshold")
+		}
+	})
+
+	t.Run("with max time", func(t *testing.T) {
+		now := time.Now()
+		s := ThresholdStrategy(0.01, time.Millisecond)
+		errs := []float64{
+			1000,
+			4000,
+			10000,
+		}
+
+		for {
+			if !s(errs) {
+				break
+			}
+
+			for idx, v := range errs {
+				r := v - 0.01
+				if r < 0 {
+					r = 0
+				}
+				errs[idx] = r
+			}
+		}
+
+		v := 0.0
+		for _, err := range errs {
+			v += err
+		}
+
+		since := math.Round(float64(time.Since(now) / time.Millisecond))
+		if since > float64(time.Millisecond/time.Millisecond) {
+			t.Error("failed to stop after time")
+		}
+	})
+}
+
+func Test_WithLoggingStrategy(t *testing.T) {
+	now := time.Now()
+	buf := bytes.NewBufferString("")
+	s := WithLoggingStrategy(buf, ThresholdStrategy(0.01, time.Millisecond))
+	errs := []float64{
+		1000,
+		4000,
+		10000,
+	}
+
+	for {
+		if !s(errs) {
+			break
+		}
+
+		for idx, v := range errs {
+			r := v - 0.01
+			if r < 0 {
+				r = 0
+			}
+			errs[idx] = r
+		}
+	}
+
+	v := 0.0
+	for _, err := range errs {
+		v += err
+	}
+
+	since := math.Round(float64(time.Since(now) / time.Millisecond))
+	if since > float64(time.Millisecond/time.Millisecond) {
+		t.Error("failed to stop after time")
+	}
+
+	if len(buf.String()) == 0 {
+		t.Error("failed to write log")
+	}
 }

@@ -3,9 +3,9 @@
 
 ## Introduction
 
-This package contains a simple Go implementation for DNNs; for practical everyday-use in common use-cases. It is neither
-heavily optimized to be the best DNN package around, nor does this package contain an exhaustive variety of mathematical
-functions. It supports Sigmoid, Tanh and ReLU. It leverages Go primitives.
+This package contains a simple Go implementation for neural networks; for practical everyday-use in common use-cases. It
+is neither heavily optimized to be the best package around, nor does this package contain an exhaustive variety of
+mathematical functions. It supports Sigmoid, Tanh and ReLU. It leverages Go primitives.
 
 ```go
 nn := qndnn.NewNeuralNet(nil, 4, 3, 3, 1) // sigmoid is default; input (4), hidden1 (3), hidden2 (3), output (1)
@@ -24,7 +24,7 @@ err = nn.Train(
         },
     }, 
 	0.01, // learning rate
-	1000, // rounds
+	qndnn.RoundStrategy(1000), // train for 1000 rounds; other options include ThresholdStrategy (see examples)
 )
 
 serializedBase64, err := nn.Serialize() // to serialize net (weights, biases)
